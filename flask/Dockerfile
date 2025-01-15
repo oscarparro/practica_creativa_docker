@@ -18,10 +18,6 @@ RUN git clone https://github.com/oscarparro/practica_creativa_bdfi.git && \
 
 ENV PROJECT_HOME=/home/practica_creativa_bdfi
 ENV JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-amd64
-ENV SPARK_HOME=/opt/spark
-ENV PATH="$PROJECT_HOME/bin:$PATH"
-ENV PATH="$SPARK_HOME/bin:$PATH"
-ENV PATH="$JAVA_HOME/bin:$PATH"
 
 COPY flask.sh /
 RUN chmod 777 /flask.sh

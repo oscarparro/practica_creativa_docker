@@ -5,10 +5,11 @@ services:
     image: mongo:6.0.19
     container_name: mongo
     volumes:
-      - ./mongodb/data:/data/db
-      - ./mongodb/init_mongo.js:/docker-entrypoint-initdb.d/init_mongo.js
+      - ./mongo/data:/data/db
+      - ./mongo/init_mongo.sh:/docker-entrypoint-initdb.d/init_mongo.sh
     ports:
       - "27017:27017"
+    command: bash -c "docker-entrypoint.sh mongod --bind_ip_all --nojournal & mongoimport -d agile_data_science -c origin_dest_distances --file /data/db/origin_dest_distances.jsonl && wait"
     tty: true
   
 
@@ -26,19 +27,18 @@ services:
     tty: true
 
 
-  zookeeper: 
-    image: 'bitnami/zookeeper:latest'
+  zookeeper:
+    image: wurstmeister/zookeeper
     container_name: zookeeper
     ports:
       - "2181:2181"
     environment:
       - ALLOW_ANONYMOUS_LOGIN=yes
     tty: true
-
-
+      
   kafka:
-    image: 'bitnami/kafka:latest'
     container_name: kafka
+    image: wurstmeister/kafka
     ports:
       - "9092:9092"
     environment:
@@ -55,33 +55,32 @@ services:
     container_name: spark-master
     ports:
       - "7077:7077"
+    links:
+      - 'mongo'
     depends_on:
-      - mongo
-      - cassandra
-      - zookeeper
-      - kafka
+      - 'mongo'
+      - 'cassandra'
+      - 'kafka'
     environment:
       - "SPARK_MASTER=spark://spark-master:7077"
-      - "SPARK_MASTER_PORT=7077"
+      - "SPARK_MASTER_HOST=spark-master"
       - "INIT_DAEMON_STEP=setup_spark"
       - "constraint:node==spark-master"
-    volumes:
-      - ./practica_creativa_bdfi:/home/practica_creativa_bdfi
     tty: true
 
   spark-worker-1:
     build: ./spark
     container_name: spark-worker-1
     depends_on:
+      - mongo
+      - kafka
       - spark-master
     ports:
       - "8081:8081"
     environment:
       - "SPARK_MASTER=spark://spark-master:7077"
-      - "SPARK_MASTER_PORT=7077"
       - "INIT_DAEMON_STEP=setup_spark"
       - "constraint:node==spark-worker"
-      - ./practica_creativa_bdfi:/home/practica_creativa_bdfi
     tty: true
 
   
@@ -90,15 +89,14 @@ services:
     container_name: spark-worker-2
     hostname: spark-worker-2
     depends_on:
+      - mongo
+      - kafka
       - spark-master
     ports:
-      - "8082:8081"
+      - "8382:8081"
     environment:
       - "SPARK_MASTER=spark://spark-master:7077"
-      - "SPARK_MASTER_PORT=7077"
       - "constraint:node==spark-worker"
-    volumes:
-      - ./practica_creativa_bdfi:/home/practica_creativa_bdfi
     tty: true
 
 
@@ -106,6 +104,8 @@ services:
     build: ./spark
     container_name: spark-submit
     depends_on:
+      - mongo
+      - kafka
       - spark-master
       - spark-worker-1
       - spark-worker-2
@@ -113,26 +113,20 @@ services:
       - "4040:4040"
     environment:
       - "SPARK_MASTER=spark://spark-master:7077"
-      - "SPARK_MASTER_PORT=7077"
       - "constraint:node==spark-master"
-    volumes:
-      - ./practica_creativa_bdfi:/home/practica_creativa_bdfi
-    command: bash -c "sleep 15; /opt/spark/bin/spark-submit --class es.upm.dit.ging.predictor.MakePrediction --deploy-mode client --master spark://spark-master:7077 --packages org.mongodb.spark:mongo-spark-connector_2.12:10.1.1,org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.0,com.datastax.spark:spark-cassandra-connector_2.12:3.3.0 target/scala-2.12/flight_prediction_2.12-0.1.jar"
+    command: /opt/spark/bin/spark-submit --deploy-mode client --class es.upm.dit.ging.predictor.MakePrediction --master spark://spark-master:7077  --packages org.mongodb.spark:mongo-spark-connector_2.12:10.1.1,org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.0,com.datastax.spark:spark-cassandra-connector_2.12:3.3.0 /home/practica_creativa_bdfi/flight_prediction/target/scala-2.12/flight_prediction_2.12-0.1.jar
     tty: true
 
   flask:
     build: ./flask
     container_name: flask
-    hostname: python
     ports:
       - "5001:5001"
     depends_on:
-      - kafka
-      - mongodb
+      - mongo
       - spark-master
+      - kafka
       - spark-worker-1
       - spark-worker-2
+      - spark-submit
     tty: true
-
-volumes:
-  mongodb:

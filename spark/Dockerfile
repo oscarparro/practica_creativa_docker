@@ -13,31 +13,34 @@ RUN apt update && apt -y full-upgrade && apt install -y \
     gnupg2 && \
     apt clean
 
-RUN wget https://archive.apache.org/dist/spark/spark-3.3.0/spark-3.3.0-bin-hadoop3.tgz && \
-    tar xvf spark-3.3.0-bin-hadoop3.tgz && \
-    mv spark-3.3.0-bin-hadoop3 /opt/spark && \
-    rm spark-3.3.0-bin-hadoop3.tgz
+RUN wget https://archive.apache.org/dist/spark/spark-3.3.3/spark-3.3.3-bin-hadoop3.tgz && \
+    tar xvf spark-3.3.3-bin-hadoop3.tgz && \
+    mv spark-3.3.3-bin-hadoop3/ /opt/spark && \
+    rm spark-3.3.3-bin-hadoop3.tgz
+
+
 
 RUN echo "deb https://repo.scala-sbt.org/scalasbt/debian all main" | tee /etc/apt/sources.list.d/sbt.list && \
-    curl -sL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x2EE0EA64E40A89B84B2DF73499E82A75642AC823" | apt-key add && \
-    apt update && apt install -y sbt && \
-    sbt --version
-
-RUN git clone https://github.com/oscarparro/practica_creativa_bdfi.git && \
-    chmod -R 777 practica_creativa_bdfi && \
-    /home/practica_creativa_bdfi/resources/download_data.sh && \
-    pip install -r /home/practica_creativa_bdfi/requirements.txt
+	echo "deb https://repo.scala-sbt.org/scalasbt/debian /" | tee /etc/apt/sources.list.d/sbt_old.list && \
+	curl -sL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x2EE0EA64E40A89B84B2DF73499E82A75642AC823" | apt-key add && \
+	apt-get update && \
+	apt-get install -y sbt
 
 ENV JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-amd64
 ENV SPARK_HOME=/opt/spark
-ENV PATH="$JAVA_HOME/bin:$PATH"
-ENV PATH="$SPARK_HOME/bin:$PATH"
 
-WORKDIR /home/practica_creativa_bdfi
-RUN python3 resources/train_spark_mllib_model.py .
+RUN git clone https://github.com/oscarparro/practica_creativa_bdfi.git &&\
+    cd practica_creativa_bdfi && \
+    resources/download_data.sh && \
+    pip install -r requirements.txt
 
-WORKDIR /home/practica_creativa_bdfi/flight_prediction
-RUN sbt package && chmod 777 target/scala-2.12/flight_prediction_2.12-0.1.jar
+WORKDIR /
+
+RUN cd /home/practica_creativa_bdfi && \
+    python3 resources/train_spark_mllib_model.py .
+
+RUN cd /home/practica_creativa_bdfi/flight_prediction && \
+    sbt clean package && chmod 777 target/scala-2.12/flight_prediction_2.12-0.1.jar
 
 EXPOSE 7077
 EXPOSE 8081
